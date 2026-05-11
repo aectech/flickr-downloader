@@ -16,14 +16,30 @@ import logging
 import argparse
 from pathlib import Path
 
-# 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
+# 计算项目根目录
+_script_dir = Path(__file__).parent.resolve()  # flickr_downloader 目录
+_project_root = _script_dir.parent  # 父目录
+
+# 添加路径 - 确保无论从哪个目录运行都能正确导入
+# 1. 添加 flickr_downloader 目录自身（优先）
+if str(_script_dir) not in sys.path:
+    sys.path.insert(0, str(_script_dir))
+# 2. 添加父目录（用于访问 flickr_downloader 包）
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+# 尝试导入，如果包导入失败则使用相对导入
+try:
+    from flickr_downloader.ui.main_window import MainWindow
+except (ModuleNotFoundError, ImportError):
+    # 降级方案：直接使用相对导入
+    if _script_dir not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+    from ui.main_window import MainWindow
 
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication, QStyleFactory
-
-from flickr_downloader.ui.main_window import MainWindow
 
 
 def setup_logging(debug: bool = False):
