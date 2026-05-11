@@ -107,10 +107,19 @@ def build(args):
         "--specpath=build"
     ]
     
+    # 跨平台分隔符处理 (Windows用;，Linux/Mac用:)
+    import platform
+    sep = ";" if platform.system() == "Windows" else ":"
+    
+    # 语言目录 - 打包到 lang 目录
+    lang_dir = script_dir / "lang"
+    if lang_dir.exists():
+        cmd.append(f"--add-data={lang_dir}{sep}lang")
+    
     # 资源目录
     resources_dir = script_dir / "resources"
     if resources_dir.exists():
-        cmd.append(f"--add-data={resources_dir};resources")
+        cmd.append(f"--add-data={resources_dir}{sep}resources")
     
     # 窗口模式
     if args.windowed or args.onefile:
