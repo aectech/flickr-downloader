@@ -7,6 +7,7 @@
 - 分页浏览功能
 - 支持勾选
 - 现代PySide6组件
+- 多语言支持
 """
 
 import logging
@@ -19,8 +20,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication,
                                 QFrame, QGridLayout, QGroupBox,
                                 QHeaderView, QLabel, QLineEdit,
                                 QListWidget, QListWidgetItem,
-                                QMessageBox, QPaginationWidget,
-                                QPushButton, QScrollArea,
+                                QMessageBox, QPushButton, QScrollArea,
                                 QSizePolicy, QSpinBox, QSplitter,
                                 QTableWidget, QTableWidgetItem,
                                 QTextBrowser, QVBoxLayout, QWidget)
@@ -57,7 +57,13 @@ class PhotoPickerDialog(QDialog):
         """
         super().__init__(parent)
         
-        self.setWindowTitle("选择照片")
+        # 初始化i18n
+        from flickr_downloader.core.i18n import LanguageManager
+        from flickr_downloader.core.config import ConfigManager
+        config_mgr = ConfigManager()
+        self.i18n = LanguageManager(config_mgr)
+        
+        self.setWindowTitle(self.i18n.t("photo_picker.title"))
         self.setMinimumSize(900, 700)
         
         self.photos = photos or []
@@ -79,14 +85,14 @@ class PhotoPickerDialog(QDialog):
         toolbar_layout = QGridLayout()
         
         # 搜索框
-        toolbar_layout.addWidget(QLabel("搜索:"), 0, 0)
+        toolbar_layout.addWidget(QLabel(self.i18n.t("photo_picker.search")), 0, 0)
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("输入照片标题搜索...")
+        self.search_edit.setPlaceholderText(self.i18n.t("photo_picker.search_placeholder"))
         self.search_edit.textChanged.connect(self._filter_photos)
         toolbar_layout.addWidget(self.search_edit, 0, 1, 1, 3)
         
         # 每页数量
-        toolbar_layout.addWidget(QLabel("每页:"), 0, 4)
+        toolbar_layout.addWidget(QLabel(self.i18n.t("photo_picker.per_page")), 0, 4)
         self.per_page_spin = QSpinBox()
         self.per_page_spin.setRange(10, 100)
         self.per_page_spin.setValue(self.per_page)
@@ -94,19 +100,23 @@ class PhotoPickerDialog(QDialog):
         toolbar_layout.addWidget(self.per_page_spin, 0, 5)
         
         # 数量显示
-        self.count_label = QLabel(f"共 {self.total_count} 张照片")
+        self.count_label = QLabel(f"{self.i18n.t('photo_picker.total_photos').replace('0', str(self.total_count))}")
         toolbar_layout.addWidget(self.count_label, 0, 6)
         
         layout.addLayout(toolbar_layout)
         
         # 照片表格
-        list_group = QGroupBox("照片列表")
+        list_group = QGroupBox(self.i18n.t("photo_picker.photo_list"))
         list_layout = QVBoxLayout()
         
         self.photo_table = QTableWidget()
         self.photo_table.setColumnCount(5)
         self.photo_table.setHorizontalHeaderLabels([
-            "选择", "缩略图", "标题", "ID", "日期"
+            self.i18n.t("photo_picker.column_select"),
+            self.i18n.t("photo_picker.column_thumbnail"),
+            self.i18n.t("photo_picker.column_title"),
+            self.i18n.t("photo_picker.column_id"),
+            self.i18n.t("photo_picker.column_date")
         ])
         
         # 设置列宽
@@ -126,43 +136,43 @@ class PhotoPickerDialog(QDialog):
         # 分页控制
         page_layout = QGridLayout()
         
-        self.prev_btn = QPushButton("上一页")
+        self.prev_btn = QPushButton(self.i18n.t("photo_picker.prev_page"))
         self.prev_btn.clicked.connect(self._prev_page)
         page_layout.addWidget(self.prev_btn, 0, 0)
         
-        self.page_label = QLabel(f"第 {self.current_page} / {self.total_pages} 页")
+        self.page_label = QLabel(self.i18n.t("photo_picker.page_info"))
         page_layout.addWidget(self.page_label, 0, 1)
         
-        self.next_btn = QPushButton("下一页")
+        self.next_btn = QPushButton(self.i18n.t("photo_picker.next_page"))
         self.next_btn.clicked.connect(self._next_page)
         page_layout.addWidget(self.next_btn, 0, 2)
         
         self.goto_edit = QLineEdit()
-        self.goto_edit.setPlaceholderText("页码")
+        self.goto_edit.setPlaceholderText(self.i18n.t("photo_picker.goto_placeholder"))
         self.goto_edit.setMaximumWidth(60)
         self.goto_edit.returnPressed.connect(self._goto_page)
         page_layout.addWidget(self.goto_edit, 0, 3)
         
-        goto_btn = QPushButton("跳转")
+        goto_btn = QPushButton(self.i18n.t("photo_picker.goto"))
         goto_btn.clicked.connect(self._goto_page)
         page_layout.addWidget(goto_btn, 0, 4)
         
         page_layout.addWidget(QLabel(""), 0, 5)  # 占位
         
         # 选择按钮
-        select_all_btn = QPushButton("全选")
+        select_all_btn = QPushButton(self.i18n.t("photo_picker.select_all"))
         select_all_btn.clicked.connect(self._select_all)
         page_layout.addWidget(select_all_btn, 0, 6)
         
-        deselect_all_btn = QPushButton("取消全选")
+        deselect_all_btn = QPushButton(self.i18n.t("photo_picker.deselect_all"))
         deselect_all_btn.clicked.connect(self._deselect_all)
         page_layout.addWidget(deselect_all_btn, 0, 7)
         
-        invert_btn = QPushButton("反选")
+        invert_btn = QPushButton(self.i18n.t("photo_picker.invert"))
         invert_btn.clicked.connect(self._invert_selection)
         page_layout.addWidget(invert_btn, 0, 8)
         
-        self.selected_count_label = QLabel("已选择: 0 张")
+        self.selected_count_label = QLabel(self.i18n.t("photo_picker.selected"))
         page_layout.addWidget(self.selected_count_label, 0, 9)
         
         list_layout.addLayout(page_layout)
@@ -174,11 +184,11 @@ class PhotoPickerDialog(QDialog):
         button_layout = QGridLayout()
         button_layout.addWidget(QLabel(""), 0, 0)
         
-        ok_btn = QPushButton("确定")
+        ok_btn = QPushButton(self.i18n.t("common.ok"))
         ok_btn.clicked.connect(self._on_ok)
         button_layout.addWidget(ok_btn, 0, 1)
         
-        cancel_btn = QPushButton("取消")
+        cancel_btn = QPushButton(self.i18n.t("common.cancel"))
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn, 0, 2)
         
@@ -199,7 +209,7 @@ class PhotoPickerDialog(QDialog):
             photo = self.photos[i]
             self._add_photo_row(photo, i)
         
-        self.page_label.setText(f"第 {self.current_page} / {self.total_pages} 页")
+        self.page_label.setText(self.i18n.t("photo_picker.page_info").replace("1", str(self.current_page)).replace("1", str(self.total_pages)))
     
     def _add_photo_row(self, photo: Dict, index: int):
         """添加照片行"""
@@ -233,7 +243,7 @@ class PhotoPickerDialog(QDialog):
         self.photo_table.setCellWidget(row, 1, thumbnail_label)
         
         # 标题
-        title = photo.get('title', '未命名')
+        title = photo.get('title', self.i18n.t("common.not_available"))
         title_item = QTableWidgetItem(title)
         title_item.setData(Qt.UserRole, photo)
         self.photo_table.setItem(row, 2, title_item)
@@ -266,7 +276,7 @@ class PhotoPickerDialog(QDialog):
             if photo_url in self.selected_photos:
                 self.selected_photos.remove(photo_url)
         
-        self.selected_count_label.setText(f"已选择: {len(self.selected_photos)} 张")
+        self.selected_count_label.setText(self.i18n.t("photo_picker.selected").replace("0", str(len(self.selected_photos))))
     
     def _filter_photos(self, text: str):
         """过滤照片"""
@@ -344,11 +354,12 @@ class PhotoPickerDialog(QDialog):
         """更新分页按钮状态"""
         self.prev_btn.setEnabled(self.current_page > 1)
         self.next_btn.setEnabled(self.current_page < self.total_pages)
+        self.page_label.setText(f"第 {self.current_page} / {self.total_pages} 页")
     
     def _on_ok(self):
         """确定"""
         if not self.selected_photos:
-            QMessageBox.warning(self, "提示", "请至少选择一张照片")
+            QMessageBox.warning(self, self.i18n.t("common.warning"), self.i18n.t("photo_picker.select_at_least_one"))
             return
         
         self.photos_selected.emit(self.selected_photos)
