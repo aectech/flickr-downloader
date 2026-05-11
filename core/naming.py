@@ -61,6 +61,44 @@ class NamingStrategy:
         16: "拍摄日期"
     }
     
+    # 国际化的命名格式名称映射
+    FORMAT_NAMES_I18N = {
+        0: "naming.style_0",
+        1: "naming.style_1",
+        2: "naming.style_2",
+        3: "naming.style_3",
+        4: "naming.style_4",
+        5: "naming.style_5",
+        6: "naming.style_6",
+        7: "naming.style_7",
+        8: "naming.style_8",
+        9: "naming.style_9",
+        10: "naming.style_10",
+        11: "naming.style_11",
+        12: "naming.style_12",
+        13: "naming.style_13",
+        14: "naming.style_14",
+        15: "naming.style_15",
+        16: "naming.style_16"
+    }
+    
+    @classmethod
+    def get_format_name(cls, style: int, i18n_manager=None) -> str:
+        """
+        获取格式名称（支持国际化）
+        
+        Args:
+            style: 格式索引
+            i18n_manager: 语言管理器实例
+            
+        Returns:
+            格式名称
+        """
+        key = cls.FORMAT_NAMES_I18N.get(style)
+        if key and i18n_manager:
+            return i18n_manager.t(key)
+        return cls.FORMAT_NAMES.get(style, "未知格式")
+    
     def __init__(self, style: int = 3, time_format: str = 'yyyy-MM-dd HH_mm_ss'):
         """
         初始化命名策略
