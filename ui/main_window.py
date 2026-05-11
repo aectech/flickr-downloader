@@ -4,7 +4,7 @@
 使用PySide6实现的现代化Flickr下载器界面
 
 修复原项目bug:
-- 所有UI文字使用简体中文
+- 所有UI文字使用多语言支持
 - 使用信号槽替代跨线程Invoke
 - i18n国际化支持
 - 现代暗色主题
@@ -153,6 +153,7 @@ class MainWindow(QMainWindow):
     - OAuth认证
     - 下载进度显示
     - 配置管理
+    - 多语言支持
     """
     
     # 信号定义
@@ -164,8 +165,17 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        # 初始化
-        self.setWindowTitle("Flickr Downloader - 现代化重写版")
+        # 初始化i18n
+        from flickr_downloader.core.i18n import LanguageManager
+        from flickr_downloader.core.config import ConfigManager
+        config_mgr = ConfigManager()
+        self.i18n = LanguageManager(config_mgr)
+        
+        # 连接语言切换信号
+        self.i18n.language_changed.connect(self._on_language_changed)
+        
+        # 初始化组件
+        self.setWindowTitle(self.i18n.t("main_window.title"))
         self.setMinimumSize(1000, 700)
         
         # 加载配置
@@ -232,75 +242,75 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
         
         # 文件菜单
-        file_menu = menubar.addMenu("文件(&F)")
+        file_menu = menubar.addMenu(self.i18n.t("menu.file"))
         
-        save_config_action = QAction("保存配置", self)
-        save_config_action.setStatusTip("保存当前配置")
+        save_config_action = QAction(self.i18n.t("menu.save_config"), self)
+        save_config_action.setStatusTip(self.i18n.t("menu.save_config_tip"))
         save_config_action.triggered.connect(self._save_config)
         file_menu.addAction(save_config_action)
         
         file_menu.addSeparator()
         
-        exit_action = QAction("退出", self)
-        exit_action.setStatusTip("退出程序")
+        exit_action = QAction(self.i18n.t("menu.exit"), self)
+        exit_action.setStatusTip(self.i18n.t("menu.exit_tip"))
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
         # 编辑菜单
-        edit_menu = menubar.addMenu("编辑(&E)")
+        edit_menu = menubar.addMenu(self.i18n.t("menu.edit"))
         
-        self.clipboard_action = QAction("剪贴簿监控=开", self)
+        self.clipboard_action = QAction(self.i18n.t("menu.clipboard_monitor") + "=" + self.i18n.t("common.on"), self)
         self.clipboard_action.setCheckable(True)
         self.clipboard_action.setChecked(True)
         self.clipboard_action.triggered.connect(self._toggle_clipboard)
         edit_menu.addAction(self.clipboard_action)
         
-        self.sound_action = QAction("音效=开", self)
+        self.sound_action = QAction(self.i18n.t("menu.sound") + "=" + self.i18n.t("common.on"), self)
         self.sound_action.setCheckable(True)
         self.sound_action.setChecked(True)
         self.sound_action.triggered.connect(self._toggle_sound)
         edit_menu.addAction(self.sound_action)
         
         # 视图菜单
-        view_menu = menubar.addMenu("视图(&V)")
+        view_menu = menubar.addMenu(self.i18n.t("menu.view"))
         
-        self.detail_action = QAction("详细显示=关", self)
+        self.detail_action = QAction(self.i18n.t("menu.detail_display") + "=" + self.i18n.t("common.off"), self)
         self.detail_action.setCheckable(True)
         self.detail_action.setChecked(False)
         self.detail_action.triggered.connect(self._toggle_detail)
         view_menu.addAction(self.detail_action)
         
         # 帮助菜单
-        help_menu = menubar.addMenu("帮助(&H)")
+        help_menu = menubar.addMenu(self.i18n.t("menu.help"))
         
-        about_action = QAction("关于", self)
+        about_action = QAction(self.i18n.t("menu.about"), self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
         
-        check_update_action = QAction("检查更新", self)
+        check_update_action = QAction(self.i18n.t("menu.check_update"), self)
         check_update_action.triggered.connect(self._check_update)
         help_menu.addAction(check_update_action)
     
     def _create_tool_bar(self):
         """创建工具栏"""
-        toolbar = QToolBar("主工具栏")
+        toolbar = QToolBar(self.i18n.t("main_window.title"))
         self.addToolBar(toolbar)
         
         # 保存路径
-        toolbar.addWidget(QLabel("保存路径:"))
+        toolbar.addWidget(QLabel(self.i18n.t("toolbar.save_path")))
         self.save_path_edit = QLineEdit()
         self.save_path_edit.setReadOnly(True)
         self.save_path_edit.setMinimumWidth(300)
         toolbar.addWidget(self.save_path_edit)
         
-        browse_btn = QPushButton("浏览...")
+        browse_btn = QPushButton(self.i18n.t("toolbar.browse"))
         browse_btn.clicked.connect(self._browse_save_path)
         toolbar.addWidget(browse_btn)
         
         toolbar.addSeparator()
         
         # 线程数
-        toolbar.addWidget(QLabel("线程数:"))
+        toolbar.addWidget(QLabel(self.i18n.t("toolbar.thread_count")))
         self.thread_spin = QSpinBox()
         self.thread_spin.setRange(1, 10)
         self.thread_spin.setValue(4)
@@ -309,37 +319,290 @@ class MainWindow(QMainWindow):
         
         toolbar.addSeparator()
         
+        # 语言选择器
+        toolbar.addWidget(QLabel(self.i18n.t("main_window.language") + ":"))
+        self.language_combo = QComboBox()
+        self.language_combo.addItem("🌍 " + self.i18n.t("main_window.auto_detect"), "auto")
+        from flickr_downloader.core.i18n import SUPPORTED_LANGUAGES
+        for code, name in SUPPORTED_LANGUAGES.items():
+            self.language_combo.addItem(name, code)
+        
+        # 设置当前语言
+        current_lang = self.i18n.get_current_language()
+        for i in range(self.language_combo.count()):
+            if self.language_combo.itemData(i) == current_lang:
+                self.language_combo.setCurrentIndex(i)
+                break
+        
+        self.language_combo.currentIndexChanged.connect(self._on_language_selected)
+        toolbar.addWidget(self.language_combo)
+        
+        toolbar.addSeparator()
+        
         # 开始/暂停按钮
-        self.start_btn = QPushButton("开始下载")
+        self.start_btn = QPushButton(self.i18n.t("toolbar.start_download"))
         self.start_btn.clicked.connect(self._toggle_download)
         toolbar.addWidget(self.start_btn)
         
-        self.stop_btn = QPushButton("停止")
+        self.stop_btn = QPushButton(self.i18n.t("toolbar.stop"))
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self._stop_download)
         toolbar.addWidget(self.stop_btn)
     
+    def _on_language_selected(self, index: int):
+        """语言选择改变"""
+        lang_code = self.language_combo.itemData(index)
+        if lang_code == "auto":
+            self.i18n.clear_preference()
+        else:
+            self.i18n.switch_language(lang_code)
+    
+    @Slot(str)
+    def _on_language_changed(self, lang_code: str):
+        """语言切换回调"""
+        # 更新下拉框选择
+        for i in range(self.language_combo.count()):
+            if self.language_combo.itemData(i) == lang_code:
+                self.language_combo.blockSignals(True)
+                self.language_combo.setCurrentIndex(i)
+                self.language_combo.blockSignals(False)
+                break
+        
+        # 刷新UI
+        self.refresh_ui()
+    
+    def refresh_ui(self):
+        """刷新所有UI文本"""
+        # 窗口标题
+        self.setWindowTitle(self.i18n.t("main_window.title"))
+        
+        # 菜单栏
+        self._refresh_menu_bar()
+        
+        # 工具栏
+        self._refresh_tool_bar()
+        
+        # 下载Tab
+        self._refresh_download_tab()
+        
+        # 搜索Tab
+        self._refresh_search_tab()
+        
+        # 状态栏
+        if not self.config.get('oauth_token'):
+            self.login_label.setText(self.i18n.t("main_window.unlogged"))
+    
+    def _refresh_menu_bar(self):
+        """刷新菜单栏"""
+        menubar = self.menuBar()
+        
+        # 清空并重建菜单
+        menubar.clear()
+        
+        # 文件菜单
+        file_menu = menubar.addMenu(self.i18n.t("menu.file"))
+        
+        save_config_action = QAction(self.i18n.t("menu.save_config"), self)
+        save_config_action.setStatusTip(self.i18n.t("menu.save_config_tip"))
+        save_config_action.triggered.connect(self._save_config)
+        file_menu.addAction(save_config_action)
+        
+        file_menu.addSeparator()
+        
+        exit_action = QAction(self.i18n.t("menu.exit"), self)
+        exit_action.setStatusTip(self.i18n.t("menu.exit_tip"))
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # 编辑菜单
+        edit_menu = menubar.addMenu(self.i18n.t("menu.edit"))
+        
+        self.clipboard_action = QAction(self.i18n.t("menu.clipboard_monitor") + "=" + (self.i18n.t("common.on") if self.clipboard_action.isChecked() else self.i18n.t("common.off")), self)
+        self.clipboard_action.setCheckable(True)
+        self.clipboard_action.setChecked(self.config.get('clipboard_monitor', True))
+        self.clipboard_action.triggered.connect(self._toggle_clipboard)
+        edit_menu.addAction(self.clipboard_action)
+        
+        self.sound_action = QAction(self.i18n.t("menu.sound") + "=" + (self.i18n.t("common.on") if self.sound_action.isChecked() else self.i18n.t("common.off")), self)
+        self.sound_action.setCheckable(True)
+        self.sound_action.setChecked(self.config.get('sound_enabled', True))
+        self.sound_action.triggered.connect(self._toggle_sound)
+        edit_menu.addAction(self.sound_action)
+        
+        # 视图菜单
+        view_menu = menubar.addMenu(self.i18n.t("menu.view"))
+        
+        self.detail_action = QAction(self.i18n.t("menu.detail_display") + "=" + (self.i18n.t("common.on") if self.detail_action.isChecked() else self.i18n.t("common.off")), self)
+        self.detail_action.setCheckable(True)
+        self.detail_action.setChecked(self.config.get('show_detail_info', False))
+        self.detail_action.triggered.connect(self._toggle_detail)
+        view_menu.addAction(self.detail_action)
+        
+        # 帮助菜单
+        help_menu = menubar.addMenu(self.i18n.t("menu.help"))
+        
+        about_action = QAction(self.i18n.t("menu.about"), self)
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
+        
+        check_update_action = QAction(self.i18n.t("menu.check_update"), self)
+        check_update_action.triggered.connect(self._check_update)
+        help_menu.addAction(check_update_action)
+    
+    def _refresh_tool_bar(self):
+        """刷新工具栏"""
+        # 刷新标签文本
+        pass  # 工具栏标签在refresh_download_tab中处理
+    
+    def _refresh_download_tab(self):
+        """刷新下载Tab"""
+        # Tab标题
+        self.tab_widget.setTabText(0, self.i18n.t("download_tab.title"))
+        
+        # 下载类型
+        self.type_group.setTitle(self.i18n.t("download_tab.download_type"))
+        type_labels = [
+            self.i18n.t("download_tab.type_album"),
+            self.i18n.t("download_tab.type_single"),
+            self.i18n.t("download_tab.type_user_all"),
+            self.i18n.t("download_tab.type_favorites"),
+            self.i18n.t("download_tab.type_group"),
+            self.i18n.t("download_tab.type_another"),
+            self.i18n.t("download_tab.type_pick_album"),
+            self.i18n.t("download_tab.type_pick_user")
+        ]
+        for i, rb in enumerate(self.type_radios):
+            rb.setText(type_labels[i])
+        
+        # URL输入
+        self.url_group.setTitle(self.i18n.t("download_tab.url_input"))
+        self.url_input.setPlaceholderText(self.i18n.t("download_tab.url_placeholder"))
+        
+        # 下载选项
+        self.options_group.setTitle(self.i18n.t("download_tab.options"))
+        
+        # 查找并刷新标签
+        for child in self.options_group.findChildren(QLabel):
+            if child.text() == "文件命名:":
+                child.setText(self.i18n.t("download_tab.file_naming"))
+            elif child.text() == "照片尺寸:":
+                child.setText(self.i18n.t("download_tab.photo_size"))
+        
+        # 复选框
+        self.auto_dir_check.setText(self.i18n.t("download_tab.auto_create_dir"))
+        self.skip_existing_check.setText(self.i18n.t("download_tab.skip_existing"))
+        self.preview_check.setText(self.i18n.t("download_tab.preview_photo"))
+        self.video_check.setText(self.i18n.t("download_tab.video_download"))
+        
+        # 尺寸选项
+        size_labels = [
+            self.i18n.t("download_tab.size_auto_max"),
+            self.i18n.t("download_tab.size_original"),
+            self.i18n.t("download_tab.size_6k"),
+            self.i18n.t("download_tab.size_5k"),
+            self.i18n.t("download_tab.size_4k"),
+            self.i18n.t("download_tab.size_3k"),
+            self.i18n.t("download_tab.size_large_800"),
+            self.i18n.t("download_tab.size_large_600"),
+            self.i18n.t("download_tab.size_large"),
+            self.i18n.t("download_tab.size_medium_800"),
+            self.i18n.t("download_tab.size_medium_640"),
+            self.i18n.t("download_tab.size_medium"),
+            self.i18n.t("download_tab.size_small")
+        ]
+        current_size = self.size_combo.currentIndex()
+        self.size_combo.clear()
+        self.size_combo.addItems(size_labels)
+        self.size_combo.setCurrentIndex(min(current_size, len(size_labels) - 1))
+        
+        # 时间格式
+        for child in self.findChildren(QLabel):
+            if child.text() == "时间格式:":
+                child.setText(self.i18n.t("download_tab.time_format"))
+                break
+    
+    def _refresh_search_tab(self):
+        """刷新搜索Tab"""
+        # Tab标题
+        self.tab_widget.setTabText(1, self.i18n.t("search_tab.title"))
+        
+        # 搜索类型
+        self.search_type_group.setTitle(self.i18n.t("search_tab.search_type"))
+        self.keyword_radio.setText(self.i18n.t("search_tab.keyword_search"))
+        self.keyword_edit.setPlaceholderText(self.i18n.t("search_tab.keyword_placeholder"))
+        self.user_radio.setText(self.i18n.t("search_tab.user_search"))
+        self.user_id_edit.setPlaceholderText(self.i18n.t("search_tab.user_placeholder"))
+        self.group_radio.setText(self.i18n.t("search_tab.group_search"))
+        self.group_id_edit.setPlaceholderText(self.i18n.t("search_tab.group_placeholder"))
+        
+        # 搜索选项
+        self.search_options_group.setTitle(self.i18n.t("search_tab.options"))
+        
+        # 刷新标签
+        for child in self.search_options_group.findChildren(QLabel):
+            if "隐私过滤" in child.text():
+                child.setText(self.i18n.t("search_tab.privacy_filter"))
+            elif "安全搜索" in child.text():
+                child.setText(self.i18n.t("search_tab.safe_search"))
+            elif "每页数量" in child.text():
+                child.setText(self.i18n.t("search_tab.per_page"))
+            elif "起始页" in child.text():
+                child.setText(self.i18n.t("search_tab.start_page"))
+            elif "抓取页数" in child.text():
+                child.setText(self.i18n.t("search_tab.fetch_pages"))
+        
+        # 隐私过滤选项
+        privacy_labels = [
+            self.i18n.t("search_tab.privacy_all"),
+            self.i18n.t("search_tab.privacy_public"),
+            self.i18n.t("search_tab.privacy_friends"),
+            self.i18n.t("search_tab.privacy_family"),
+            self.i18n.t("search_tab.privacy_private")
+        ]
+        current_privacy = self.privacy_combo.currentIndex()
+        self.privacy_combo.clear()
+        self.privacy_combo.addItems(privacy_labels)
+        self.privacy_combo.setCurrentIndex(min(current_privacy, len(privacy_labels) - 1))
+        
+        # 安全搜索选项
+        safe_labels = [
+            self.i18n.t("search_tab.safe_safe"),
+            self.i18n.t("search_tab.safe_moderate"),
+            self.i18n.t("search_tab.safe_restricted")
+        ]
+        current_safe = self.safe_search_combo.currentIndex()
+        self.safe_search_combo.clear()
+        self.safe_search_combo.addItems(safe_labels)
+        self.safe_search_combo.setCurrentIndex(min(current_safe, len(safe_labels) - 1))
+        
+        # 搜索按钮
+        self.search_btn.setText(self.i18n.t("search_tab.start_search"))
+        self.add_to_download_btn.setText(self.i18n.t("search_tab.add_to_list"))
+        
+        # 结果列表
+        self.result_group.setTitle(self.i18n.t("search_tab.results"))
+    
     def _create_download_tab(self):
         """创建下载Tab"""
         tab = QWidget()
-        self.tab_widget.addTab(tab, "下载")
+        self.tab_widget.addTab(tab, self.i18n.t("download_tab.title"))
         
         layout = QVBoxLayout(tab)
         
         # 下载类型组
-        type_group = QGroupBox("下载类型")
+        self.type_group = QGroupBox(self.i18n.t("download_tab.download_type"))
         type_layout = QVBoxLayout()
         
         self.type_radios = []
         type_labels = [
-            "相簿下载 (Album)",
-            "单张照片下载 (Single Photo)",
-            "用户全部照片 (User's All Photos)",
-            "用户收藏 (User's Favorites)",
-            "群组照片 (Group Pool)",
-            "用户最爱照片 (另一个类型)",
-            "人工挑选相簿照片 (Pick from Album)",
-            "人工挑选用户照片 (Pick from User)"
+            self.i18n.t("download_tab.type_album"),
+            self.i18n.t("download_tab.type_single"),
+            self.i18n.t("download_tab.type_user_all"),
+            self.i18n.t("download_tab.type_favorites"),
+            self.i18n.t("download_tab.type_group"),
+            self.i18n.t("download_tab.type_another"),
+            self.i18n.t("download_tab.type_pick_album"),
+            self.i18n.t("download_tab.type_pick_user")
         ]
         
         for i, label in enumerate(type_labels):
@@ -349,27 +612,27 @@ class MainWindow(QMainWindow):
             self.type_radios.append(rb)
             type_layout.addWidget(rb)
         
-        type_group.setLayout(type_layout)
-        layout.addWidget(type_group)
+        self.type_group.setLayout(type_layout)
+        layout.addWidget(self.type_group)
         
         # URL输入
-        url_group = QGroupBox("下载链接/ID")
+        self.url_group = QGroupBox(self.i18n.t("download_tab.url_input"))
         url_layout = QVBoxLayout()
         
         self.url_input = QTextEdit()
-        self.url_input.setPlaceholderText("输入Flickr URL或ID，每行一个...")
+        self.url_input.setPlaceholderText(self.i18n.t("download_tab.url_placeholder"))
         self.url_input.setMaximumHeight(100)
         url_layout.addWidget(self.url_input)
         
-        url_group.setLayout(url_layout)
-        layout.addWidget(url_group)
+        self.url_group.setLayout(url_layout)
+        layout.addWidget(self.url_group)
         
         # 选项组
-        options_group = QGroupBox("下载选项")
+        self.options_group = QGroupBox(self.i18n.t("download_tab.options"))
         options_layout = QGridLayout()
         
         # 文件命名
-        options_layout.addWidget(QLabel("文件命名:"), 0, 0)
+        options_layout.addWidget(QLabel(self.i18n.t("download_tab.file_naming")), 0, 0)
         self.naming_combo = QComboBox()
         from flickr_downloader.core.naming import NamingStrategy
         for style_id, style_name in NamingStrategy.FORMAT_NAMES.items():
@@ -378,47 +641,47 @@ class MainWindow(QMainWindow):
         options_layout.addWidget(self.naming_combo, 0, 1)
         
         # 尺寸选择
-        options_layout.addWidget(QLabel("照片尺寸:"), 0, 2)
+        options_layout.addWidget(QLabel(self.i18n.t("download_tab.photo_size")), 0, 2)
         self.size_combo = QComboBox()
         size_labels = [
-            "自动 (优先最大)",
-            "至少 Original",
-            "至少 6K",
-            "至少 5K",
-            "至少 4K",
-            "至少 3K",
-            "至少 Large 800",
-            "至少 Large 600",
-            "至少 Large",
-            "至少 Medium 800",
-            "至少 Medium 640",
-            "至少 Medium",
-            "至少 Small"
+            self.i18n.t("download_tab.size_auto_max"),
+            self.i18n.t("download_tab.size_original"),
+            self.i18n.t("download_tab.size_6k"),
+            self.i18n.t("download_tab.size_5k"),
+            self.i18n.t("download_tab.size_4k"),
+            self.i18n.t("download_tab.size_3k"),
+            self.i18n.t("download_tab.size_large_800"),
+            self.i18n.t("download_tab.size_large_600"),
+            self.i18n.t("download_tab.size_large"),
+            self.i18n.t("download_tab.size_medium_800"),
+            self.i18n.t("download_tab.size_medium_640"),
+            self.i18n.t("download_tab.size_medium"),
+            self.i18n.t("download_tab.size_small")
         ]
         self.size_combo.addItems(size_labels)
         options_layout.addWidget(self.size_combo, 0, 3)
         
         # 选项复选框
-        self.auto_dir_check = QCheckBox("自动创建子文件夹")
+        self.auto_dir_check = QCheckBox(self.i18n.t("download_tab.auto_create_dir"))
         self.auto_dir_check.setChecked(True)
         options_layout.addWidget(self.auto_dir_check, 1, 0)
         
-        self.skip_existing_check = QCheckBox("跳过已存在文件")
+        self.skip_existing_check = QCheckBox(self.i18n.t("download_tab.skip_existing"))
         options_layout.addWidget(self.skip_existing_check, 1, 1)
         
-        self.preview_check = QCheckBox("预览照片")
+        self.preview_check = QCheckBox(self.i18n.t("download_tab.preview_photo"))
         self.preview_check.setChecked(True)
         options_layout.addWidget(self.preview_check, 1, 2)
         
-        self.video_check = QCheckBox("视频下载")
+        self.video_check = QCheckBox(self.i18n.t("download_tab.video_download"))
         options_layout.addWidget(self.video_check, 1, 3)
         
-        options_group.setLayout(options_layout)
-        layout.addWidget(options_group)
+        self.options_group.setLayout(options_layout)
+        layout.addWidget(self.options_group)
         
         # 时间格式
         time_layout = QHBoxLayout()
-        time_layout.addWidget(QLabel("时间格式:"))
+        time_layout.addWidget(QLabel(self.i18n.t("download_tab.time_format")))
         self.time_format_edit = QLineEdit("yyyy-MM-dd HH_mm_ss")
         time_layout.addWidget(self.time_format_edit)
         layout.addLayout(time_layout)
@@ -428,105 +691,117 @@ class MainWindow(QMainWindow):
     def _create_search_tab(self):
         """创建搜索Tab"""
         tab = QWidget()
-        self.tab_widget.addTab(tab, "搜索")
+        self.tab_widget.addTab(tab, self.i18n.t("search_tab.title"))
         
         layout = QVBoxLayout(tab)
         
         # 搜索类型
-        search_type_group = QGroupBox("搜索类型")
+        self.search_type_group = QGroupBox(self.i18n.t("search_tab.search_type"))
         search_type_layout = QGridLayout()
         
         # 关键词搜索
-        self.keyword_radio = QRadioButton("关键词搜索")
+        self.keyword_radio = QRadioButton(self.i18n.t("search_tab.keyword_search"))
         self.keyword_radio.setChecked(True)
         search_type_layout.addWidget(self.keyword_radio, 0, 0)
         
         self.keyword_edit = QLineEdit()
-        self.keyword_edit.setPlaceholderText("输入搜索关键词...")
+        self.keyword_edit.setPlaceholderText(self.i18n.t("search_tab.keyword_placeholder"))
         search_type_layout.addWidget(self.keyword_edit, 0, 1, 1, 3)
         
         # 用户搜索
-        self.user_radio = QRadioButton("用户搜索")
+        self.user_radio = QRadioButton(self.i18n.t("search_tab.user_search"))
         search_type_layout.addWidget(self.user_radio, 1, 0)
         
         self.user_id_edit = QLineEdit()
-        self.user_id_edit.setPlaceholderText("输入用户ID或URL...")
+        self.user_id_edit.setPlaceholderText(self.i18n.t("search_tab.user_placeholder"))
         search_type_layout.addWidget(self.user_id_edit, 1, 1, 1, 3)
         
         # 群组搜索
-        self.group_radio = QRadioButton("群组搜索")
+        self.group_radio = QRadioButton(self.i18n.t("search_tab.group_search"))
         search_type_layout.addWidget(self.group_radio, 2, 0)
         
         self.group_id_edit = QLineEdit()
-        self.group_id_edit.setPlaceholderText("输入群组ID或URL...")
+        self.group_id_edit.setPlaceholderText(self.i18n.t("search_tab.group_placeholder"))
         search_type_layout.addWidget(self.group_id_edit, 2, 1, 1, 3)
         
-        search_type_group.setLayout(search_type_layout)
-        layout.addWidget(search_type_group)
+        self.search_type_group.setLayout(search_type_layout)
+        layout.addWidget(self.search_type_group)
         
         # 搜索选项
-        search_options_group = QGroupBox("搜索选项")
+        self.search_options_group = QGroupBox(self.i18n.t("search_tab.options"))
         search_options_layout = QGridLayout()
         
         # 隐私过滤
-        search_options_layout.addWidget(QLabel("隐私过滤:"), 0, 0)
+        search_options_layout.addWidget(QLabel(self.i18n.t("search_tab.privacy_filter")), 0, 0)
         self.privacy_combo = QComboBox()
-        self.privacy_combo.addItems(["全部", "仅公开", "仅朋友可见", "仅家人可见", "仅私人"])
+        privacy_labels = [
+            self.i18n.t("search_tab.privacy_all"),
+            self.i18n.t("search_tab.privacy_public"),
+            self.i18n.t("search_tab.privacy_friends"),
+            self.i18n.t("search_tab.privacy_family"),
+            self.i18n.t("search_tab.privacy_private")
+        ]
+        self.privacy_combo.addItems(privacy_labels)
         search_options_layout.addWidget(self.privacy_combo, 0, 1)
         
         # 安全搜索
-        search_options_layout.addWidget(QLabel("安全搜索:"), 0, 2)
+        search_options_layout.addWidget(QLabel(self.i18n.t("search_tab.safe_search")), 0, 2)
         self.safe_search_combo = QComboBox()
-        self.safe_search_combo.addItems(["安全", "中度", "限制"])
+        safe_labels = [
+            self.i18n.t("search_tab.safe_safe"),
+            self.i18n.t("search_tab.safe_moderate"),
+            self.i18n.t("search_tab.safe_restricted")
+        ]
+        self.safe_search_combo.addItems(safe_labels)
         self.safe_search_combo.setCurrentIndex(1)
         search_options_layout.addWidget(self.safe_search_combo, 0, 3)
         
         # 分页
-        search_options_layout.addWidget(QLabel("每页数量:"), 1, 0)
+        search_options_layout.addWidget(QLabel(self.i18n.t("search_tab.per_page")), 1, 0)
         self.per_page_spin = QSpinBox()
         self.per_page_spin.setRange(1, 500)
         self.per_page_spin.setValue(50)
         search_options_layout.addWidget(self.per_page_spin, 1, 1)
         
-        search_options_layout.addWidget(QLabel("起始页:"), 1, 2)
+        search_options_layout.addWidget(QLabel(self.i18n.t("search_tab.start_page")), 1, 2)
         self.start_page_spin = QSpinBox()
         self.start_page_spin.setRange(1, 9999)
         self.start_page_spin.setValue(1)
         search_options_layout.addWidget(self.start_page_spin, 1, 3)
         
-        search_options_layout.addWidget(QLabel("抓取页数:"), 2, 0)
+        search_options_layout.addWidget(QLabel(self.i18n.t("search_tab.fetch_pages")), 2, 0)
         self.fetch_page_spin = QSpinBox()
         self.fetch_page_spin.setRange(1, 100)
         self.fetch_page_spin.setValue(1)
         search_options_layout.addWidget(self.fetch_page_spin, 2, 1)
         
-        search_options_group.setLayout(search_options_layout)
-        layout.addWidget(search_options_group)
+        self.search_options_group.setLayout(search_options_layout)
+        layout.addWidget(self.search_options_group)
         
         # 搜索按钮
         search_btn_layout = QHBoxLayout()
         search_btn_layout.addStretch()
         
-        search_btn = QPushButton("开始搜索")
-        search_btn.clicked.connect(self._start_search)
-        search_btn_layout.addWidget(search_btn)
+        self.search_btn = QPushButton(self.i18n.t("search_tab.start_search"))
+        self.search_btn.clicked.connect(self._start_search)
+        search_btn_layout.addWidget(self.search_btn)
         
-        add_to_download_btn = QPushButton("添加到下载列表")
-        add_to_download_btn.clicked.connect(self._add_search_results)
-        search_btn_layout.addWidget(add_to_download_btn)
+        self.add_to_download_btn = QPushButton(self.i18n.t("search_tab.add_to_list"))
+        self.add_to_download_btn.clicked.connect(self._add_search_results)
+        search_btn_layout.addWidget(self.add_to_download_btn)
         
         layout.addLayout(search_btn_layout)
         
         # 结果列表
-        result_group = QGroupBox("搜索结果")
+        self.result_group = QGroupBox(self.i18n.t("search_tab.results"))
         result_layout = QVBoxLayout()
         
         self.search_result_list = QListWidget()
         self.search_result_list.setAlternatingRowColors(True)
         result_layout.addWidget(self.search_result_list)
         
-        result_group.setLayout(result_layout)
-        layout.addWidget(result_group, 1)
+        self.result_group.setLayout(result_layout)
+        layout.addWidget(self.result_group, 1)
     
     def _create_log_area(self):
         """创建日志区域"""
@@ -541,25 +816,25 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.log_text)
         
         # 失败列表
-        fail_group = QGroupBox("失败列表")
+        self.fail_group = QGroupBox(self.i18n.t("fail_list.title"))
         fail_layout = QVBoxLayout()
         
         self.fail_list = QListWidget()
         fail_layout.addWidget(self.fail_list)
         
         fail_btn_layout = QHBoxLayout()
-        retry_fail_btn = QPushButton("重试失败项")
+        retry_fail_btn = QPushButton(self.i18n.t("fail_list.retry_failed"))
         retry_fail_btn.clicked.connect(self._retry_failed)
         fail_btn_layout.addWidget(retry_fail_btn)
         
-        clear_fail_btn = QPushButton("清空")
+        clear_fail_btn = QPushButton(self.i18n.t("fail_list.clear"))
         clear_fail_btn.clicked.connect(self._clear_failed)
         fail_btn_layout.addWidget(clear_fail_btn)
         fail_btn_layout.addStretch()
         
         fail_layout.addLayout(fail_btn_layout)
-        fail_group.setLayout(fail_layout)
-        splitter.addWidget(fail_group)
+        self.fail_group.setLayout(fail_layout)
+        splitter.addWidget(self.fail_group)
         
         # 添加到主布局
         layout = self.tab_widget.widget(0).layout()
@@ -572,7 +847,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.statusbar)
         
         # 登录状态
-        self.login_label = QLabel("未登录")
+        self.login_label = QLabel(self.i18n.t("main_window.unlogged"))
         self.statusbar.addPermanentWidget(self.login_label)
         
         # 下载进度
@@ -586,7 +861,7 @@ class MainWindow(QMainWindow):
         self.statusbar.addPermanentWidget(self.speed_label)
         
         # 版本信息
-        self.version_label = QLabel("v2.0.0")
+        self.version_label = QLabel(self.i18n.t("main_window.version"))
         self.statusbar.addPermanentWidget(self.version_label)
     
     def _init_connections(self):
@@ -682,7 +957,7 @@ class MainWindow(QMainWindow):
         
         self.config.save()
         
-        self._log("配置已保存", QColor(0, 255, 0))
+        self._log(self.i18n.t("status.config_saved"), QColor(0, 255, 0))
     
     # ==================== 槽函数 ====================
     
@@ -731,12 +1006,12 @@ class MainWindow(QMainWindow):
         """下载完成回调"""
         task = self.download_manager.get_task(task_id)
         if task:
-            self._log(f"下载完成: {task.title}", QColor(0, 255, 0))
+            self._log(f"{self.i18n.t('status.download_complete')}: {task.title}", QColor(0, 255, 0))
     
     def _browse_save_path(self):
         """浏览保存路径"""
         path = QFileDialog.getExistingDirectory(
-            self, "选择保存路径", self.save_path_edit.text()
+            self, self.i18n.t("dialog.select_save_path"), self.save_path_edit.text()
         )
         if path:
             self.save_path_edit.setText(path)
@@ -745,7 +1020,7 @@ class MainWindow(QMainWindow):
     def _toggle_clipboard(self, checked: bool):
         """切换剪贴板监控"""
         self.config['clipboard_monitor'] = checked
-        self.clipboard_action.setText(f"剪贴簿监控={'开' if checked else '关'}")
+        self.clipboard_action.setText(f"{self.i18n.t('menu.clipboard_monitor')}={self.i18n.t('common.on') if checked else self.i18n.t('common.off')}")
         
         if checked:
             self._clipboard_timer.start()
@@ -755,30 +1030,26 @@ class MainWindow(QMainWindow):
     def _toggle_sound(self, checked: bool):
         """切换音效"""
         self.config['sound_enabled'] = checked
-        self.sound_action.setText(f"音效={'开' if checked else '关'}")
+        self.sound_action.setText(f"{self.i18n.t('menu.sound')}={self.i18n.t('common.on') if checked else self.i18n.t('common.off')}")
     
     def _toggle_detail(self, checked: bool):
         """切换详细显示"""
         self.config['show_detail_info'] = checked
-        self.detail_action.setText(f"详细显示={'开' if checked else '关'}")
+        self.detail_action.setText(f"{self.i18n.t('menu.detail_display')}={self.i18n.t('common.on') if checked else self.i18n.t('common.off')}")
     
     def _show_about(self):
         """显示关于对话框"""
         QMessageBox.about(
             self,
-            "关于 Flickr Downloader",
-            "<h3>Flickr Downloader v2.0.0</h3>"
-            "<p>现代化重写版本</p>"
-            "<p>使用Python 3.10+ 和 PySide6构建</p>"
-            "<p>基于原项目 (C# WinForms) 完整复刻并修复已知Bug</p>"
-            "<p>BSD-3 License</p>"
+            self.i18n.t("about.title"),
+            self.i18n.t("about.content")
         )
     
     def _check_update(self):
         """检查更新"""
-        self._log("正在检查更新...", QColor(255, 255, 0))
+        self._log(self.i18n.t("status.checking_update"), QColor(255, 255, 0))
         # TODO: 实现版本检查
-        self._log("当前已是最新版本", QColor(0, 255, 0))
+        self._log(self.i18n.t("status.up_to_date"), QColor(0, 255, 0))
     
     def _check_clipboard(self):
         """检查剪贴板"""
@@ -790,7 +1061,7 @@ class MainWindow(QMainWindow):
                 # 检查是否已经添加
                 current_urls = self.url_input.toPlainText()
                 if text not in current_urls:
-                    self._log(f"检测到Flickr链接: {text[:50]}...", QColor(0, 255, 255))
+                    self._log(f"{self.i18n.t('status.clipboard_detected')}: {text[:50]}...", QColor(0, 255, 255))
                     # 可以选择自动添加或提示用户
         except Exception as e:
             logger.debug(f"剪贴板检查失败: {e}")
@@ -805,19 +1076,19 @@ class MainWindow(QMainWindow):
     def _start_download(self):
         """开始下载"""
         self._is_downloading = True
-        self.start_btn.setText("暂停")
+        self.start_btn.setText(self.i18n.t("toolbar.pause"))
         self.stop_btn.setEnabled(True)
         
-        self._log("开始下载...", QColor(255, 255, 0))
+        self._log(self.i18n.t("status.download_started"), QColor(255, 255, 0))
         
         # 获取输入的URL
         urls = self.url_input.toPlainText().strip().split('\n')
         urls = [u.strip() for u in urls if u.strip()]
         
         if not urls:
-            self._log("请输入下载链接!", QColor(255, 0, 0))
+            self._log(self.i18n.t("status.please_input_url"), QColor(255, 0, 0))
             self._is_downloading = False
-            self.start_btn.setText("开始下载")
+            self.start_btn.setText(self.i18n.t("toolbar.start_download"))
             return
         
         # 获取下载类型
@@ -832,28 +1103,28 @@ class MainWindow(QMainWindow):
             url_type = parsed.get('type', 'unknown')
             
             # 根据下载类型处理
-            self._log(f"解析URL: {url} -> 类型: {url_type}", QColor(255, 255, 255))
+            self._log(f"{self.i18n.t('status.url_parsed')}: {url} -> 类型: {url_type}", QColor(255, 255, 255))
             
             # TODO: 根据不同类型调用API获取照片列表
             # 目前简化处理，直接添加URL
         
-        self._log(f"已添加 {len(urls)} 个下载任务", QColor(0, 255, 0))
+        self._log(f"{len(urls)} {self.i18n.t('status.tasks_added')}", QColor(0, 255, 0))
     
     def _pause_download(self):
         """暂停下载"""
         self._is_downloading = False
-        self.start_btn.setText("继续")
+        self.start_btn.setText(self.i18n.t("toolbar.resume"))
         self.download_manager.pause()
-        self._log("下载已暂停", QColor(255, 255, 0))
+        self._log(self.i18n.t("status.download_paused"), QColor(255, 255, 0))
     
     def _stop_download(self):
         """停止下载"""
         self._is_downloading = False
-        self.start_btn.setText("开始下载")
+        self.start_btn.setText(self.i18n.t("toolbar.start_download"))
         self.stop_btn.setEnabled(False)
         
         self.download_manager.stop()
-        self._log("下载已停止", QColor(255, 0, 0))
+        self._log(self.i18n.t("status.download_stopped"), QColor(255, 0, 0))
     
     def _get_selected_type(self) -> int:
         """获取选中的下载类型"""
@@ -864,38 +1135,38 @@ class MainWindow(QMainWindow):
     
     def _start_search(self):
         """开始搜索"""
-        self._log("开始搜索...", QColor(255, 255, 0))
+        self._log(self.i18n.t("status.search_started"), QColor(255, 255, 0))
         
         # 获取搜索参数
         if self.keyword_radio.isChecked():
             keyword = self.keyword_edit.text().strip()
             if not keyword:
-                self._log("请输入搜索关键词!", QColor(255, 0, 0))
+                self._log(self.i18n.t("status.please_input_keyword"), QColor(255, 0, 0))
                 return
             self._log(f"关键词搜索: {keyword}", QColor(255, 255, 255))
         
         elif self.user_radio.isChecked():
             user_id = self.user_id_edit.text().strip()
             if not user_id:
-                self._log("请输入用户ID!", QColor(255, 0, 0))
+                self._log(self.i18n.t("status.please_input_user_id"), QColor(255, 0, 0))
                 return
             self._log(f"用户搜索: {user_id}", QColor(255, 255, 255))
         
         elif self.group_radio.isChecked():
             group_id = self.group_id_edit.text().strip()
             if not group_id:
-                self._log("请输入群组ID!", QColor(255, 0, 0))
+                self._log(self.i18n.t("status.please_input_group_id"), QColor(255, 0, 0))
                 return
             self._log(f"群组搜索: {group_id}", QColor(255, 255, 255))
         
         # TODO: 调用API执行搜索
-        self._log("搜索功能开发中...", QColor(255, 255, 0))
+        self._log(self.i18n.t("status.search_developing"), QColor(255, 255, 0))
     
     def _add_search_results(self):
         """添加搜索结果到下载列表"""
         selected_items = self.search_result_list.selectedItems()
         if not selected_items:
-            self._log("请先选择搜索结果!", QColor(255, 0, 0))
+            self._log(self.i18n.t("status.please_select_results"), QColor(255, 0, 0))
             return
         
         urls = []
@@ -908,16 +1179,16 @@ class MainWindow(QMainWindow):
             current += '\n'
         self.url_input.setPlainText(current + '\n'.join(urls))
         
-        self._log(f"已添加 {len(urls)} 个项目到下载列表", QColor(0, 255, 0))
+        self._log(f"{len(urls)} {self.i18n.t('status.items_added')}", QColor(0, 255, 0))
         
         # 切换到下载Tab
         self.tab_widget.setCurrentIndex(0)
     
     def _retry_failed(self):
         """重试失败项"""
-        self._log("重试失败项...", QColor(255, 255, 0))
+        self._log(self.i18n.t("status.retrying"), QColor(255, 255, 0))
         count = self.download_manager.retry_failed()
-        self._log(f"已重试 {count} 项", QColor(0, 255, 0))
+        self._log(f"{count} {self.i18n.t('status.retried')}", QColor(0, 255, 0))
     
     def _clear_failed(self):
         """清空失败列表"""
