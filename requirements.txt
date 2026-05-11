@@ -1,0 +1,24 @@
+# Flickr Downloader 依赖包
+# Python 3.10+
+
+# GUI框架 - PySide6 (Qt6)
+PySide6>=6.5.0
+PySide6-Addons>=6.5.0  # 包含QtNetwork等模块
+
+# HTTP客户端
+httpx>=0.25.0
+
+# 图片处理
+Pillow>=10.0.0
+
+# 日志配置
+colorlog>=6.7.0
+
+# 打包工具 (开发依赖)
+# pyinstaller>=5.13.0
+# nuitka>=1.5.0
+
+# 开发工具 (可选)
+# pytest>=7.4.0
+# black>=23.0.0
+# mypy>=1.5.0
