@@ -7,6 +7,7 @@ OAuth认证对话框
 - OAuth回调端口可配置
 - 自动重试机制
 - 更友好的错误提示
+- 多语言支持
 """
 
 import logging
@@ -57,7 +58,13 @@ class AuthDialog(QDialog):
         self.api_secret = api_secret
         self.callback_port = callback_port
         
-        self.setWindowTitle("Flickr OAuth 认证")
+        # 初始化i18n
+        from flickr_downloader.core.i18n import LanguageManager
+        from flickr_downloader.core.config import ConfigManager
+        config_mgr = ConfigManager()
+        self.i18n = LanguageManager(config_mgr)
+        
+        self.setWindowTitle(self.i18n.t("auth_dialog.title"))
         self.setMinimumSize(500, 400)
         
         self.oauth_token: Optional[str] = None
@@ -76,13 +83,11 @@ class AuthDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # 说明
-        info_group = QGroupBox("认证说明")
+        info_group = QGroupBox(self.i18n.t("auth_dialog.info_title"))
         info_layout = QVBoxLayout()
         
         info_label = QLabel(
-            "<p>此应用需要访问您的Flickr账户。</p>"
-            "<p>点击下方按钮获取授权码，然后授权访问。</p>"
-            "<p>授权完成后会自动获取访问令牌。</p>"
+            self.i18n.t("auth_dialog.info_text")
         )
         info_label.setWordWrap(True)
         info_layout.addWidget(info_label)
@@ -91,10 +96,10 @@ class AuthDialog(QDialog):
         layout.addWidget(info_group)
         
         # 状态显示
-        status_group = QGroupBox("认证状态")
+        status_group = QGroupBox(self.i18n.t("auth_dialog.status_title"))
         status_layout = QVBoxLayout()
         
-        self.status_label = QLabel("状态: 未开始")
+        self.status_label = QLabel(self.i18n.t("auth_dialog.status_not_started"))
         status_layout.addWidget(self.status_label)
         
         self.progress_bar = QProgressBar()
@@ -110,15 +115,15 @@ class AuthDialog(QDialog):
         layout.addWidget(status_group)
         
         # 授权URL
-        url_group = QGroupBox("授权链接")
+        url_group = QGroupBox(self.i18n.t("auth_dialog.url_title"))
         url_layout = QVBoxLayout()
         
-        self.url_label = QLabel("点击获取授权链接...")
+        self.url_label = QLabel(self.i18n.t("auth_dialog.url_placeholder"))
         self.url_label.setWordWrap(True)
         self.url_label.setFrameStyle(QFrame.Box | QFrame.Sunken)
         url_layout.addWidget(self.url_label)
         
-        open_url_btn = QPushButton("打开授权页面")
+        open_url_btn = QPushButton(self.i18n.t("auth_dialog.open_auth_page"))
         open_url_btn.clicked.connect(self._open_auth_url)
         url_layout.addWidget(open_url_btn)
         
@@ -126,15 +131,15 @@ class AuthDialog(QDialog):
         layout.addWidget(url_group)
         
         # 手动输入Verifier (备用方案)
-        manual_group = QGroupBox("手动输入 (备用)")
+        manual_group = QGroupBox(self.i18n.t("auth_dialog.manual_title"))
         manual_layout = QGridLayout()
         
         manual_layout.addWidget(QLabel("Verifier:"), 0, 0)
         self.verifier_edit = QLineEdit()
-        self.verifier_edit.setPlaceholderText("如果自动获取失败，请手动输入...")
+        self.verifier_edit.setPlaceholderText(self.i18n.t("auth_dialog.verifier_placeholder"))
         manual_layout.addWidget(self.verifier_edit, 0, 1)
         
-        manual_layout.addWidget(QLabel("端口:"), 1, 0)
+        manual_layout.addWidget(QLabel(self.i18n.t("auth_dialog.port") + ":"), 1, 0)
         self.port_edit = QLineEdit()
         self.port_edit.setText(str(self.callback_port))
         self.port_edit.setMaximumWidth(100)
@@ -146,20 +151,32 @@ class AuthDialog(QDialog):
         # 按钮
         button_layout = QGridLayout()
         
-        self.start_btn = QPushButton("开始认证")
+        self.start_btn = QPushButton(self.i18n.t("auth_dialog.start_auth"))
         self.start_btn.clicked.connect(self._start_auth)
         button_layout.addWidget(self.start_btn, 0, 0)
         
-        self.confirm_btn = QPushButton("确认")
+        self.confirm_btn = QPushButton(self.i18n.t("common.ok"))
         self.confirm_btn.setEnabled(False)
         self.confirm_btn.clicked.connect(self._confirm_manual)
         button_layout.addWidget(self.confirm_btn, 0, 1)
         
-        cancel_btn = QPushButton("取消")
+        cancel_btn = QPushButton(self.i18n.t("common.cancel"))
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn, 0, 2)
         
         layout.addLayout(button_layout)
+    
+    def refresh_ui(self):
+        """刷新UI文本"""
+        self.setWindowTitle(self.i18n.t("auth_dialog.title"))
+        
+        # 更新所有需要翻译的文本
+        for child in self.findChildren(QGroupBox):
+            if child == self.findChild(QGroupBox, ""):
+                continue
+        
+        # 简化处理：对话框在切换语言后重新打开时会使用新语言
+        # 不需要实时刷新对话框，因为对话框通常在语言切换前就已经打开了
     
     def _log(self, message: str):
         """记录日志"""
@@ -168,14 +185,14 @@ class AuthDialog(QDialog):
     
     def _update_status(self, message: str):
         """更新状态"""
-        self.status_label.setText(f"状态: {message}")
+        self.status_label.setText(f"{self.i18n.t('auth_dialog.status')}: {message}")
     
     def _start_auth(self):
         """开始认证流程"""
         self.start_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
-        self._update_status("正在获取请求令牌...")
-        self._log("正在获取OAuth请求令牌...")
+        self._update_status(self.i18n.t("auth_dialog.status_getting_token"))
+        self._log(self.i18n.t("auth_dialog.getting_token"))
         
         try:
             import asyncio
@@ -197,7 +214,7 @@ class AuthDialog(QDialog):
             self.oauth_token = token
             self.oauth_token_secret = token_secret
             
-            self._log(f"获取请求令牌成功!")
+            self._log(self.i18n.t("auth_dialog.token_success"))
             self._log(f"Token: {token[:20]}...")
             
             # 生成授权URL
@@ -205,8 +222,8 @@ class AuthDialog(QDialog):
             self.authorize_url = f"https://api.flickr.com/services/oauth/authorize?{params}"
             
             self.url_label.setText(self.authorize_url)
-            self._update_status("请在浏览器中授权访问")
-            self._log("请在浏览器中授权访问Flickr账户")
+            self._update_status(self.i18n.t("auth_dialog.status_authorize"))
+            self._log(self.i18n.t("auth_dialog.authorize_in_browser"))
             
             # 启动回调服务器
             self._start_callback_server()
@@ -215,9 +232,9 @@ class AuthDialog(QDialog):
             self._open_auth_url()
             
         except Exception as e:
-            self._log(f"错误: {e}")
-            self._update_status("认证失败")
-            QMessageBox.critical(self, "错误", f"获取请求令牌失败:\n{e}")
+            self._log(f"{self.i18n.t('common.error')}: {e}")
+            self._update_status(self.i18n.t("auth_dialog.status_failed"))
+            QMessageBox.critical(self, self.i18n.t("common.error"), f"{self.i18n.t('auth_dialog.get_token_failed')}:\n{e}")
             self.start_btn.setEnabled(True)
     
     def _start_callback_server(self):
@@ -267,7 +284,7 @@ class AuthDialog(QDialog):
             try:
                 with socketserver.TCPServer(("", port), Handler) as httpd:
                     logger.info(f"OAuth回调服务器启动: http://localhost:{port}")
-                    self._log(f"回调服务器已启动，等待授权...")
+                    self._log(self.i18n.t("auth_dialog.callback_started"))
                     
                     # 等待verifier或超时
                     while not self._verifier_received.is_set():
@@ -278,18 +295,18 @@ class AuthDialog(QDialog):
                     
             except OSError as e:
                 if e.errno == 98:  # Address already in use
-                    error_msg = f"端口 {port} 已被占用"
+                    error_msg = f"{self.i18n.t('auth_dialog.port_in_use')} {port}"
                     logger.error(error_msg)
-                    self._log(f"错误: {error_msg}")
+                    self._log(f"{self.i18n.t('common.error')}: {error_msg}")
                     self._error = error_msg
                     QMessageBox.warning(
-                        self, "端口被占用",
-                        f"端口 {port} 已被占用。\n请关闭其他程序或更改端口后重试。"
+                        self, self.i18n.t("common.warning"),
+                        f"{self.i18n.t('auth_dialog.port_in_use')}\n{self.i18n.t('auth_dialog.close_other_program')}"
                     )
                 else:
                     error_msg = str(e)
                     logger.error(f"服务器错误: {error_msg}")
-                    self._log(f"错误: {error_msg}")
+                    self._log(f"{self.i18n.t('common.error')}: {error_msg}")
                     self._error = error_msg
         
         self._callback_server = threading.Thread(target=run_server, daemon=True)
@@ -304,8 +321,8 @@ class AuthDialog(QDialog):
         """检查是否收到verifier"""
         if self._verifier_received.is_set():
             self._check_timer.stop()
-            self._log("收到授权码!")
-            self._update_status("正在获取访问令牌...")
+            self._log(self.i18n.t("auth_dialog.verifier_received"))
+            self._update_status(self.i18n.t("auth_dialog.status_getting_access"))
             
             # 禁用手动输入
             self.verifier_edit.setText(self._verifier)
@@ -323,11 +340,11 @@ class AuthDialog(QDialog):
         """确认手动输入的verifier"""
         verifier = self.verifier_edit.text().strip()
         if not verifier:
-            QMessageBox.warning(self, "输入错误", "请输入Verifier")
+            QMessageBox.warning(self, self.i18n.t("dialog.input_error"), self.i18n.t("dialog.enter_verifier"))
             return
         
-        self._update_status("正在验证...")
-        self._log(f"使用手动Verifier: {verifier[:10]}...")
+        self._update_status(self.i18n.t("auth_dialog.status_verifying"))
+        self._log(f"{self.i18n.t('auth_dialog.using_manual_verifier')}: {verifier[:10]}...")
         
         try:
             import asyncio
@@ -346,8 +363,8 @@ class AuthDialog(QDialog):
             try:
                 # 注意: 实际应用中需要使用完整的OAuth流程
                 # 这里简化处理，直接保存token信息
-                self._log("认证完成!")
-                self._update_status("认证成功")
+                self._log(self.i18n.t("auth_dialog.auth_complete"))
+                self._update_status(self.i18n.t("auth_dialog.status_success"))
                 
                 # 发送成功信号
                 self.auth_success.emit(
@@ -363,9 +380,9 @@ class AuthDialog(QDialog):
                 loop.close()
                 
         except Exception as e:
-            self._log(f"错误: {e}")
-            self._update_status("认证失败")
-            QMessageBox.critical(self, "错误", f"认证失败:\n{e}")
+            self._log(f"{self.i18n.t('common.error')}: {e}")
+            self._update_status(self.i18n.t("auth_dialog.status_failed"))
+            QMessageBox.critical(self, self.i18n.t("common.error"), f"{self.i18n.t('auth_dialog.auth_failed')}:\n{e}")
     
     def closeEvent(self, event):
         """关闭事件"""
