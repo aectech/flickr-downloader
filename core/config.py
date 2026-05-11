@@ -87,6 +87,9 @@ class ConfigManager:
         'privacy_filter': 0,
         'safe_search': 1,
         'search_user_id_type': 0,
+        
+        # 语言设置
+        'language': 'auto',  # auto=自动检测, zh_CN=简体中文, zh_TW=繁体中文, en=English, ja=日本語
     }
     
     def __init__(self, config_path: Optional[str] = None):
