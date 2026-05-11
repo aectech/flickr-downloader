@@ -5,7 +5,7 @@
 
 修复原项目bug:
 - 使用现代PySide6组件
-- 所有文字使用简体中文
+- 多语言支持
 """
 
 import logging
@@ -48,7 +48,13 @@ class AlbumPickerDialog(QDialog):
         """
         super().__init__(parent)
         
-        self.setWindowTitle("选择相簿")
+        # 初始化i18n
+        from flickr_downloader.core.i18n import LanguageManager
+        from flickr_downloader.core.config import ConfigManager
+        config_mgr = ConfigManager()
+        self.i18n = LanguageManager(config_mgr)
+        
+        self.setWindowTitle(self.i18n.t("album_picker.title"))
         self.setMinimumSize(800, 600)
         
         self.albums = albums or []
@@ -62,21 +68,21 @@ class AlbumPickerDialog(QDialog):
         layout = QVBoxLayout(self)
         
         # 相册列表
-        list_group = QGroupBox("相簿列表")
+        list_group = QGroupBox(self.i18n.t("album_picker.album_list"))
         list_layout = QVBoxLayout()
         
         # 工具栏
         toolbar_layout = QGridLayout()
         
         # 搜索框
-        toolbar_layout.addWidget(QLabel("搜索:"), 0, 0)
+        toolbar_layout.addWidget(QLabel(self.i18n.t("album_picker.search")), 0, 0)
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("输入相册名称搜索...")
+        self.search_edit.setPlaceholderText(self.i18n.t("album_picker.search_placeholder"))
         self.search_edit.textChanged.connect(self._filter_albums)
         toolbar_layout.addWidget(self.search_edit, 0, 1, 1, 3)
         
         # 数量显示
-        self.count_label = QLabel("共 0 个相册")
+        self.count_label = QLabel(self.i18n.t("album_picker.total_albums"))
         toolbar_layout.addWidget(self.count_label, 0, 4)
         
         list_layout.addLayout(toolbar_layout)
@@ -85,7 +91,11 @@ class AlbumPickerDialog(QDialog):
         self.album_table = QTableWidget()
         self.album_table.setColumnCount(5)
         self.album_table.setHorizontalHeaderLabels([
-            "选择", "缩略图", "相册名称", "照片数量", "相册ID"
+            self.i18n.t("album_picker.column_select"),
+            self.i18n.t("album_picker.column_thumbnail"),
+            self.i18n.t("album_picker.column_name"),
+            self.i18n.t("album_picker.column_count"),
+            self.i18n.t("album_picker.column_id")
         ])
         
         # 设置列宽
@@ -106,21 +116,21 @@ class AlbumPickerDialog(QDialog):
         # 选择按钮
         btn_layout = QGridLayout()
         
-        select_all_btn = QPushButton("全选")
+        select_all_btn = QPushButton(self.i18n.t("album_picker.select_all"))
         select_all_btn.clicked.connect(self._select_all)
         btn_layout.addWidget(select_all_btn, 0, 0)
         
-        deselect_all_btn = QPushButton("取消全选")
+        deselect_all_btn = QPushButton(self.i18n.t("album_picker.deselect_all"))
         deselect_all_btn.clicked.connect(self._deselect_all)
         btn_layout.addWidget(deselect_all_btn, 0, 1)
         
-        invert_btn = QPushButton("反选")
+        invert_btn = QPushButton(self.i18n.t("album_picker.invert"))
         invert_btn.clicked.connect(self._invert_selection)
         btn_layout.addWidget(invert_btn, 0, 2)
         
         btn_layout.addWidget(QLabel(""), 0, 3)  # 占位
         
-        self.selected_count_label = QLabel("已选择: 0 个")
+        self.selected_count_label = QLabel(self.i18n.t("album_picker.selected"))
         btn_layout.addWidget(self.selected_count_label, 0, 4)
         
         list_layout.addLayout(btn_layout)
@@ -129,10 +139,10 @@ class AlbumPickerDialog(QDialog):
         layout.addWidget(list_group, 1)
         
         # 相册预览
-        preview_group = QGroupBox("相册预览")
+        preview_group = QGroupBox(self.i18n.t("album_picker.preview"))
         preview_layout = QVBoxLayout()
         
-        self.preview_label = QLabel("选择相册查看预览")
+        self.preview_label = QLabel(self.i18n.t("album_picker.preview_placeholder"))
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setMinimumHeight(200)
         self.preview_label.setFrameStyle(QFrame.Box | QFrame.Sunken)
@@ -149,11 +159,11 @@ class AlbumPickerDialog(QDialog):
         button_layout = QGridLayout()
         button_layout.addWidget(QLabel(""), 0, 0)
         
-        ok_btn = QPushButton("确定")
+        ok_btn = QPushButton(self.i18n.t("common.ok"))
         ok_btn.clicked.connect(self._on_ok)
         button_layout.addWidget(ok_btn, 0, 1)
         
-        cancel_btn = QPushButton("取消")
+        cancel_btn = QPushButton(self.i18n.t("common.cancel"))
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn, 0, 2)
         
@@ -169,7 +179,7 @@ class AlbumPickerDialog(QDialog):
         for album in self.albums:
             self._add_album_row(album)
         
-        self.count_label.setText(f"共 {len(self.albums)} 个相册")
+        self.count_label.setText(f"{self.i18n.t('album_picker.total_albums').replace('0', str(len(self.albums)))}")
     
     def _add_album_row(self, album: Dict):
         """添加相册行"""
@@ -204,7 +214,7 @@ class AlbumPickerDialog(QDialog):
         self.album_table.setCellWidget(row, 1, thumbnail_label)
         
         # 名称
-        title_item = QTableWidgetItem(album.get('title', '未命名'))
+        title_item = QTableWidgetItem(album.get('title', self.i18n.t("common.not_available")))
         title_item.setData(Qt.UserRole, album)
         self.album_table.setItem(row, 2, title_item)
         
@@ -236,7 +246,7 @@ class AlbumPickerDialog(QDialog):
             if album_id in self.selected_albums:
                 self.selected_albums.remove(album_id)
         
-        self.selected_count_label.setText(f"已选择: {len(self.selected_albums)} 个")
+        self.selected_count_label.setText(f"{self.i18n.t('album_picker.selected').replace('0', str(len(self.selected_albums)))}")
     
     def _filter_albums(self, text: str):
         """过滤相册"""
@@ -282,10 +292,10 @@ class AlbumPickerDialog(QDialog):
             if item:
                 album = item.data(Qt.UserRole)
                 if album:
-                    info = f"<b>名称:</b> {album.get('title', 'N/A')}<br>"
-                    info += f"<b>ID:</b> {album.get('id', 'N/A')}<br>"
-                    info += f"<b>照片数量:</b> {album.get('count', 0)}<br>"
-                    info += f"<b>描述:</b> {album.get('description', 'N/A')}"
+                    info = f"<b>{self.i18n.t('album_picker.name_label')}</b> {album.get('title', 'N/A')}<br>"
+                    info += f"<b>{self.i18n.t('album_picker.id_label')}</b> {album.get('id', 'N/A')}<br>"
+                    info += f"<b>{self.i18n.t('album_picker.count_label')}</b> {album.get('count', 0)}<br>"
+                    info += f"<b>{self.i18n.t('album_picker.desc_label')}</b> {album.get('description', 'N/A')}"
                     self.preview_info.setHtml(info)
     
     def _on_ok(self):
